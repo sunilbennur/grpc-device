@@ -10,9 +10,18 @@ on:
       - 'releases/**'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   trigger_azdo_ci:
     name: Trigger Main CI
+    # Only act on CI runs started by a push to this repository. workflow_run branch
+    # filters match on branch name alone, so also check the event and head repository.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: windows-latest
     steps:
     - name: Checkout CMakeLists.txt

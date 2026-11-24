@@ -1,0 +1,107 @@
+name: CodeQL
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
+      - 'releases/**'
+  schedule:
+    - cron: '23 4 * * 1' # Weekly, Monday 04:23 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    permissions:
+      contents: read
+      actions: read          # Required for workflow run metadata in private forks.
+      packages: read         # Required to fetch CodeQL packs.
+      security-events: write # Required to upload results to the Security tab.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: c-cpp
+            build-mode: manual
+          - language: python
+            build-mode: none
+          - language: actions
+            build-mode: none
+
+    steps:
+    - name: Free Disk Space
+      if: ${{ matrix.language == 'c-cpp' }}
+      uses: insightsengineering/disk-space-reclaimer@v1
+      with:
+        tools-cache: false
+
+    - name: Checkout Repo
+      uses: actions/checkout@v4
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v4
+      with:
+        languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
+        config: |
+          paths-ignore:
+            - third_party
+            - generated
+
+    # C/C++ is analyzed using the repository's own CMake build (same toolchain
+    # as the "Ubuntu Build" job in build_cmake.yml).
+    - name: Setup python3
+      if: ${{ matrix.build-mode == 'manual' }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
+    - name: Install build dependencies
+      if: ${{ matrix.build-mode == 'manual' }}
+      run: |
+        sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+        sudo apt-get update
+        sudo apt-get install -y gcc-13 g++-13
+
+    - name: Update Submodules
+      if: ${{ matrix.build-mode == 'manual' }}
+      run: git submodule update --init --recursive --depth=1
+
+    - name: Setup Ninja
+      if: ${{ matrix.build-mode == 'manual' }}
+      uses: seanmiddleditch/gha-setup-ninja@v5
+      with:
+        version: 1.12.1
+
+    - name: Setup cmake
+      if: ${{ matrix.build-mode == 'manual' }}
+      uses: jwlawson/actions-setup-cmake@v2
+      with:
+        cmake-version: '3.18.x'
+
+    - name: Configure
+      if: ${{ matrix.build-mode == 'manual' }}
+      env:
+        CC: gcc-13
+        CXX: g++-13
+      run: cmake -S . -B build -D CMAKE_BUILD_TYPE=RelWithDebInfo -G "Ninja"
+
+    - name: Build
+      if: ${{ matrix.build-mode == 'manual' }}
+      run: cmake --build build -j "$(nproc)"
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v4
+      with:
+        category: "/language:${{ matrix.language }}"

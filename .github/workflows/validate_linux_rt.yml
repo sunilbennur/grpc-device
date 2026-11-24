@@ -4,10 +4,16 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
 
+permissions:
+  contents: read
+
 jobs:
   validate_linux_rt:
     name: Validate Linux RT Feed Package Version
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write # Create an issue when the Linux RT feed needs updating.
     steps:
     - name: Checkout Repo
       uses: actions/checkout@v4
@@ -43,21 +49,29 @@ jobs:
     - name: Fail if new tag is not latest tag
       if: ${{ github.ref_name != steps.latesttag.outputs.tag}}
       uses: actions/github-script@v6
+      env:
+        NEW_TAG: ${{ github.ref_name }}
+        LATEST_TAG: ${{ steps.latesttag.outputs.tag }}
       with:
         script: |
-            core.setFailed(`The new release (${{ github.ref_name }}) is not a patch or update to the latest release (${{ steps.latesttag.outputs.tag }}). Checking if the Linux RT Feed needs updating doesn't make sense on a patch to a previous release.`)
+            core.setFailed(`The new release (${process.env.NEW_TAG}) is not a patch or update to the latest release (${process.env.LATEST_TAG}). Checking if the Linux RT Feed needs updating doesn't make sense on a patch to a previous release.`)
 
     - name: Install build dependencies
       run: python -m pip install -r python_build_requirements.txt
 
     - name: Check if Linux RT needs updating
+      env:
+        SECOND_LATEST_TAG: ${{ steps.secondlatesttag.outputs.tag }}
+        LATEST_TAG: ${{ steps.latesttag.outputs.tag }}
       run: |
-        git diff --name-only ${{ steps.secondlatesttag.outputs.tag}}..${{ steps.latesttag.outputs.tag }} | python source/codegen/validate_linux_rt.py source/codegen/metadata
+        git diff --name-only "${SECOND_LATEST_TAG}..${LATEST_TAG}" | python source/codegen/validate_linux_rt.py source/codegen/metadata
 
     - name: Get branch name
       id: getbranchname
+      env:
+        GIT_REF: ${{ github.ref }}
       run: |
-        raw=$(git branch -r --contains ${{ github.ref }})
+        raw=$(git branch -r --contains "${GIT_REF}")
         branch_sans_origin=${raw/origin\/}
         echo branch=$branch_sans_origin >> $GITHUB_OUTPUT
 

@@ -1,0 +1,40 @@
+name: Generate SBOM
+
+on:
+  push:
+    branches:
+      - main
+      - 'releases/**'
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    name: Generate SPDX SBOM
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repo
+      uses: actions/checkout@v4
+
+    # Initialize nested submodules so transitive native dependencies
+    # (e.g. gRPC's abseil, protobuf, BoringSSL, zlib) are included.
+    - name: Update Submodules
+      run: git submodule update --init --recursive --depth=1
+
+    - name: Setup python3
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
+    - name: Generate SBOM
+      run: python utils/generate_sbom.py -o ni-grpc-device.spdx.json
+
+    - name: Upload SBOM Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ni-grpc-device-sbom
+        path: ni-grpc-device.spdx.json
+        retention-days: 90

@@ -8,6 +8,8 @@ on:
   issue_comment:
     types: [created, edited, deleted]
 
+permissions: {}
+
 jobs:
   alert:
     if: ${{ !github.event.issue.pull_request && github.event.issue.title != 'Dependency Dashboard' }}
@@ -15,10 +17,13 @@ jobs:
     steps:
       - name: Choose work item type
         id: choose_work_item_type
+        env:
+          IS_USER_STORY: ${{ contains(github.event.issue.labels.*.name, 'enhancement') || contains(github.event.issue.labels.*.name, 'user story') }}
+          IS_TECH_DEBT: ${{ contains(github.event.issue.labels.*.name, 'tech debt') }}
         run: |
-          if [ "${{ contains(github.event.issue.labels.*.name, 'enhancement') || contains(github.event.issue.labels.*.name, 'user story') }}" == "true" ]; then
+          if [ "$IS_USER_STORY" == "true" ]; then
             echo "work_item_type=User Story" >> $GITHUB_OUTPUT
-          elif [ "${{ contains(github.event.issue.labels.*.name, 'tech debt') }}" == "true" ]; then
+          elif [ "$IS_TECH_DEBT" == "true" ]; then
             echo "work_item_type=Technical Debt" >> $GITHUB_OUTPUT
           else
             echo "work_item_type=Bug" >> $GITHUB_OUTPUT
