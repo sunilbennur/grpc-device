@@ -3,9 +3,11 @@ on:
   push:
     branches:
       - main
-      - 'releases/**'
   workflow_call:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   validate_imported_protos:
@@ -27,10 +29,3 @@ jobs:
     uses: ./.github/workflows/run_win_system_tests.yml
   create_client_artifacts:
     uses: ./.github/workflows/create_client_artifacts.yml
-  create_release:
-    if: ${{ startsWith(github.ref, 'refs/heads/releases') && github.event_name == 'push' }}
-    needs:
-      - build_desktop
-      - build_nilrt
-      - create_client_artifacts
-    uses: ./.github/workflows/create_release.yml

@@ -4,12 +4,15 @@ on:
   workflow_call:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   create_release:
     name: Create Release
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write # Create the draft release and upload its assets.
     steps:
     - name: Checkout Repo
       uses: actions/checkout@v4

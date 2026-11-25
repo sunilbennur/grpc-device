@@ -2,7 +2,8 @@ name: Trigger AzDO CIs
 
 on:
   workflow_run:
-    workflows: [CI]
+    # Release runs on releases/** branches; older release branches still use CI.
+    workflows: [CI, Release]
     types:
       - completed
     branches:
@@ -10,25 +11,35 @@ on:
       - 'releases/**'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   trigger_azdo_ci:
     name: Trigger Main CI
+    # workflow_run matches on workflow and branch name only, so a fork PR could
+    # otherwise reach this job. Accept runs of this repository's own code only.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event != 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: windows-latest
     steps:
-    - name: Checkout CMakeLists.txt
-      if: ${{ github.repository == 'ni/grpc-device' }}
-      uses: actions/checkout@v4
-      with:
-        ref: ${{ github.event.workflow_run.head_sha }}
-        sparse-checkout: CMakeLists.txt
-        sparse-checkout-cone-mode: false
-
+    # Read the file through the API instead of checking out the commit: this
+    # workflow holds secrets, so it must not check out workflow_run code.
     - name: Get version from CMakeLists.txt
       id: version
       if: ${{ github.repository == 'ni/grpc-device' }}
       shell: pwsh
+      env:
+        GH_TOKEN: ${{ github.token }}
+        HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       run: |
-        $cmake = Get-Content -Raw CMakeLists.txt
+        $cmake = (gh api -H 'Accept: application/vnd.github.raw+json' "repos/$env:GITHUB_REPOSITORY/contents/CMakeLists.txt?ref=$env:HEAD_SHA") -join "`n"
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error 'Could not read CMakeLists.txt'
+          exit 1
+        }
         if ($cmake -notmatch 'project\(ni_grpc_device_server[\s\S]*?VERSION\s+(\d+)\.(\d+)\.(\d+)') {
           Write-Error 'Could not find project VERSION in CMakeLists.txt'
           exit 1
