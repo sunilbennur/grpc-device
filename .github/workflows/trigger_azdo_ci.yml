@@ -16,8 +16,7 @@ permissions:
 jobs:
   trigger_azdo_ci:
     name: Trigger Main CI
-    # workflow_run matches on workflow and branch name only, so a fork PR could
-    # otherwise reach this job. Accept runs of this repository's own code only.
+    # Accept only non-PR runs from this repository.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.event != 'pull_request' &&
