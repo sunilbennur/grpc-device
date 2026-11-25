@@ -2,8 +2,7 @@ name: Trigger AzDO CIs
 
 on:
   workflow_run:
-    # Release runs on releases/** branches; older release branches still use CI.
-    workflows: [CI, Release]
+    workflows: [CI]
     types:
       - completed
     branches:

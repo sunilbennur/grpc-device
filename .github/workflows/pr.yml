@@ -15,4 +15,9 @@ permissions:
 jobs:
   run_ci:
     name: Run CI
+    # A called workflow cannot exceed its caller, so this must allow the write
+    # permission that create_release declares. ci.yml defaults its jobs to
+    # read-only, and create_release is skipped for pull requests.
+    permissions:
+      contents: write
     uses: ./.github/workflows/ci.yml
